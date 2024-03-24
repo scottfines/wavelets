@@ -29,57 +29,62 @@ The basic idea is to break the full real space(Mathematically `L^2(ℝ)`) into "
 2. $\bigcup V_i = L^2(ℝ)$. That is, the entire space is covered
 3. $\bigcap V_i = {0}$. All sets contain 0, but that's the _only_ point covered by everything.
 
-These are our "Resolution spaces", and they aren't really necessary except for explaining the next parts. A good example is the dyadic ranges `V_i = [-2^i,2^i]`.
+These are our "Resolution spaces", and they aren't really necessary except for explaining the next parts. A good example is the dyadic ranges $V_i = [-2^i,2^i]$.
 
-So we choose a convenient "Ladder space" and then we look at specific functions `f` which satisfy
+So we choose a convenient "Ladder space" and then we look at specific functions $f$ which satisfy
 
-1. $f \in V_j \iff f(2^j) \in V_0$. This more or less means that all the spaces are just scaled versions of the "central" space `V_0`. 
-2. `f ∈ V_0 => f(*-n) ∈ V_0` for any integer `n`. That is, that linear shifts of the function stay in the space.
+1. $f \in V_j \iff f(2^j) \in V_0$. This more or less means that all the spaces are just scaled versions of the "central" space $V_0$. 
+2. $f \in V_0 \implies f(-n) \in V_0$ for any integer $n$. That is, that linear shifts of the function stay in the space.
 
-For example, if we choose `f_{j,k} = constant` on the interval `[2^j*k,2^j*(k+1)]`,
-then we can define `V_j = { f_{j,k} ∈ L^2(ℝ), k an integer}`, and this is a nice clean Resolution space by our definition. It's actually the "Haar space" (because of haar wavelets, but we're getting ahead of ourselves).
+For example, if we choose $f_{j,k} = constant$ on the interval $[2^{j}k,2^{j}(k+1)]$,
+then we can define $V_j = \\{f_{j,k} \in L^2(ℝ),k \in \mathbb{Z} \\}$, and this is a nice clean Resolution space by our definition. It's actually the "Haar space" (because of haar wavelets, but we're getting ahead of ourselves).
 
-Finally, because we want this to be so, choose a function `ϕ ∈ V_0` and define
+Finally, because we want this to be so, choose a function $\phi \in V_0$ and define
+```math
+\phi_{j,n}(x) = 2^{-j/2} \phi(2^{-j}x-n)
 ```
-ϕ_{j,n}(x) = 2^{j/2} ϕ(2^{-j}*x-n)
+such that the set of $\phi_{0,n}$ forms an orthonormal basis of $V_0$. Specifically, any function $f \in V_0$ can be written as 
+```math
+f(x) = \sum h_n * \phi_{-1,n}(x)
 ```
-such that the set of `ϕ_{0,n}` form an orthonormal basis of `V_0`. Specifically, any function `f ∈ V_0` can be written as 
-```
-f(x) = 𝚺 h_n * ϕ_{-1,n}(x)
-```
-for some `h_n ∈ ℝ`, such that `𝚺 | h_n*h_n| = 1`. From basic linear algebra, if we have an orthonormal basis `ϕ_{-1,n}`, then we can define 
-```
-h_n = <ϕ,ϕ_{-1,n}> = ∫ ϕ(x)* ϕ_{-1,n}(x) dx =2^{-1/2} ∫ ϕ(x)*ϕ(2x-n)) dx
-```
-(integral is -infinity to infinity). 
-
-because `ϕ ∈ V_0`, then we can write it the same way.
-
-We are going to call `ϕ` the "mother function" of the analysis (because we can derive all the other ones from it through scaling and shifting). From here, we define a "wavelet function" 
-```
-𝛙(x) = 𝚺 (-1)^{n-1} h_{-n+1} * ϕ(2x-n)
-```
-over all integers `n`. To simplify the notation, we set 
-```
-g_n = (-1)^{n-1}*h_{-n+1})
+for some $h_n ∈ \mathbb{R}$, such that $\sum |h_n|^2 = 1$. From basic linear algebra, if we have an orthonormal basis $\phi_{-1,n}$, then we can define 
+```math
+h_n = <\phi,\phi_{-1,n}> = \int_{-\infty}^\infty \phi(x)* \phi_{-1,n}(x) dx =\frac{1}{\sqrt{2}} \int_{-\infty}^\infty \phi(x)*\phi(2x-n)) dx
 ```
 
-So then, to find a wavelet function using the multi-resolution analysis, we start with a mother function `ϕ`, then compute `h_n = <ϕ, ϕ_{-1,n}>` for all `n`. Then we sum them all up to get
-the wavelet function. Handy!
+From here, we define a "mother wavelet function" 
+```math
+\psi(x) = \sum_{n\in \mathbb{Z}} (-1)^{n} h_{-n+1} * \phi(2x-n)
+```
+To simplify the notation, we set $g_n = (-1)^{n}h_{-n+1})$
+And get
+```math
+\psi(x) = \sum_{n\in \mathbb{Z}} g_n \phi(2x-n)
+```
+
+So then, to find a wavelet function using the multi-resolution analysis, we start with $\phi$, then compute $h_n$; summing them up creates $\psi$. Handy!
+
+It's worth noting that computing $h_n$ is highly dependent on the choice of $\phi$; If you choose $\phi$ poorly, there could be infinitely many $h_n$, which would lead to an incomputable wavelet transform--this might be mathematically entertaining for you, but we're aiming for some code at the end of the day here, so
+we'll need to stay away from those particular wavelets.
 
 ## Example: The Haar wavelet
 
-Start with the function `ϕ(x) = 1` if `0 ≤ x < 1`, and `ϕ(x) = 0` everywhere else. This definition implies that
-` ϕ_{-1,n}(x) = 2^{1/2} ϕ(2*x-n) = 1 ` whenever `n/2 ≤ x < (n+1)/2`. So if we compute `h_n`, we get to do a bit of interval math to see that `h_n = 0` unless `n = 0,1`, and `1/sqrt(2)` otherwise. So
-now we have a wavelet function
+Start with the function $\phi(x) = 1$ if $0 \leq x < 1$, and $\phi(x) = 0$ everywhere else. This definition implies that
+$\phi_{-1,n}(x)= 1$ whenever $n/2 \leq x < (n+1)/2$. So if we compute $h_n$, we get to do a bit of interval math to see that $h_n = 0$ unless $n = 0,1$, and $1/\sqrt{2}$ otherwise. Thus, we have the wavelet function
 
+```math
+\psi(x) = \frac{-1}{\sqrt{2}} \phi_{-1,0} + \frac{1}{\sqrt{2}}\phi_{-1,1}
 ```
-𝛙(x) = (-1)^{-1}/sqrt(2) ϕ_{-1,0}+ (-1)^{0}/sqrt(2)*ϕ_{-1,1}
-𝛙(x) = -1/sqrt(2) ϕ_{-1,0} + 1/sqrt(2)ϕ_{-1,1}
+working that out, we get 
+```math
+\psi(x) = \begin{cases}
+1 & 0 \leq x \lt 1/2 \\
+-1 & 1/2 \leq x \lt 1 \\
+0 & otherwise
+\end{cases}
 ```
-working that out, we get `𝛙(x) = 1` from 0 to `1/2` and `-1` from `1/2` to `1`.
 
-Keep the two functions `𝛙(x)` and `ϕ(x)` in mind, because it won't be the last time we confront the haar wavelet and it's two constituent functions.
+Keep $\phi(x)$ and $\psi(x)$ in mind, because it won't be the last time we confront the haar wavelet and it's two constituent functions.
 
 # Recursive Computation -- The Cascade algorithm
 Let's imagine that we have a function `f`, but because we're computer people, that function isn't represented continuously. Instead, we have an array of constant values `[c_0,c_1,...]`. For convenience,
