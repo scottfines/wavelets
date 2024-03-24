@@ -65,7 +65,6 @@ If we look at the original transform, each successive approximation reduces the 
 of the inverse sum $\sum h_{n-2k} c^{j}_k$ can only contain $c^{j}_k$ terms which exist at that level--half of what you're trying to build. We can thus expect that, at the $j-1$ th level of inversion, we would be generating twice as many $c^{j-1}_n$ terms as there are at the $j$ th level. This implies that our max value for $n$ should be twice what was at the previous level, which works out to be $2^{lg(N)-j}$ terms. This is nice in that it tells us how many terms we are generating for each level, but doesn't tell us anything about how many $k$ terms to sum over to generate each result, which is unfortunate. This information
 is where specific knowing about the wavelet we are using becomes necessary.
 
-
 ### Example: Inverse Haar transform
 From a previous example (#multi_resolution.md), we have a haar transform, from which we know that $h_n = 1/\sqrt{2}$ if $n = 0,1$, and $h_n = 0$ otherwise. 
 Thus, we pick out only terms in the inverse in which $n-2k = 0$ and $n-2k = 1$. Recall that $n$ and $k$ are integers, which means that only _some_ of those identies are valid, depending on the value of $n$. In particular, if $n$ is even, then $k = n/2$, and if $n$ is odd, $k = (n-1)/2$ _always_. This allows us
@@ -85,117 +84,118 @@ This makes intuitive sense. The Haar transform is taking piecewise sums and diff
 
 ## Example: Haar wavelets over a finite data set
 
-Suppose `f = [1,3,5,11,12,13,0,1]`. This means that `N = 2^3=8` values, so life is easy (we'll deal with non-dyadic arrays soon)
+Suppose $f = [1,3,5,11,12,13,0,1]$. This means that $N = 2^3=8$ values, so life is easy (we'll deal with non-dyadic arrays soon)
 
-Using the Haar wavelet, we recal that our `h_n` is `1/sqrt(2)` if `n=0,1` and `0` otherwise.  So `n-2k = 0,1` or our inner product terms dissappear (thus, we only have terms for `n=2k, n=2k+1`). Similarly, our `g_n` terms are `2k-n+1 = 0,1`
+Using the Haar wavelet, we recall that our $h_n$ is $1/\sqrt{2}$ if $n=0,1$ and $0$ otherwise.  So $n-2k = 0,1$ or our inner product terms dissappear (thus, we only have terms for $n=2k, n=2k+1$). Similarly, our $g_n$ terms are $2k-n+1 = 0,1$
 So lets' compute our transform levels:
-```
-<f,ϕ_{j,k}> = 𝚺 h_{n-2k} < f,ϕ_{j-1,n} > = h_0 <f, ϕ_{j-1,2k}> + h_1 <f, ϕ_{j-1,2k+1}>  
-<f,ϕ_{j,k}> = 1/sqrt(2)*(<f, ϕ_{j-1,2k}> + <f, ϕ_{j-1,2k+1}>)
 
-<f,𝛙_{j,k}> = 𝚺 g_{n-2k} < f,ϕ_{j-1,n} > = h_1 <f,ϕ_{j-1,2k}> - h_0<f,ϕ_{j-1,2k+1}>
-<f,𝛙_{j,k}> = 1/sqrt(2) * <f,ϕ_{j-1,2k}> - <f,ϕ_{j-1,2k+1}>)
+```math
+< f,ϕ_{j,k}> = \frac{1}{\sqrt{2}}(< f, ϕ_{j-1,2k} > + < f, ϕ_{j-1,2k+1} > )
 ```
+and
+```math
+< f,𝛙_{j,k}> = \frac{1}{\sqrt{2}} ( < f,ϕ_{j-1,2k} > - < f,ϕ_{j-1,2k+1} > )
+```
+If we use our notation $c^{j}_n$ to represent the approximate value of $f^j$ at position $n$, then we can rewrite these as
+```math
+c^j_k = \frac{1}{\sqrt{2}}(c^{j-1}_{2k} + c^{j-1}_{2k+1} )
+```
+and
+```math
+d^j_k = \frac{1}{\sqrt{2}}(c^{j-1}_{2k} - c^{j-1}_{2k+1} )
+```
+
 So at each level, we get approximation by summing, and find out error by diffing. Sweet! Let's apply it:
 
 ```
 f^0 = [1,3,5,11,12,13,0,1]
-f^1 =l/sqrt(2) [4,16,25,1]
+f^1 = 1/sqrt(2) [4,16,25,1]
 d^1 = 1/sqrt(2) [-2,-6,-1,-1]
 
-f^2 = 1/2 [20,26 ] = [10,13]
-d^2 = 1/2[-12,24] = [-6,12]
+f^2 = 1/2 [20,26] = [10,13]
+d^2 = 1/2 [-12,24] = [-6,12]
 
-f^3 = 1/sqrt(2) [ 23]
-d^3 = 1/sqrt(2)[ -3]
+f^3 = 1/sqrt(2) [23]
+d^3 = 1/sqrt(2) [-3]
 ```
 And that's all the levels that we have. In order to represent this in a single array, we will to it tree style: first, by `j`, then increasing by `k`:
+```math
+haar(f) = [ 23/\sqrt{2},-3/\sqrt{2}, -6,12,-2,-6,-1,-1 ]
 ```
-wavelet(f) = [23/sqrt(2),-3/sqrt(2), -6,12,-2,-6,-1,-1]
+
+That's...handy, but how do we know that we are correct? Let's check it by computing the inverse. 
+
+We will recall our table:
+
+| $n$ | $k$ | $h_{n-2k}$ | $g_{n-2k}$ |
+| --- | --- | --- | --- |
+| 0 | 0 | $h_0$ | $h_1$ |
+| 1 | 0 | $h_1$ | $-h_0$ |
+| 2 | 1 | $h_0$ | $h_1$ |
+| 3 | 1 | $h_1$ | $-h_0$ |
+
+We can psuedocode up a quick algorithm for this:
 ```
-
-That's...handy, but how do we know that we are correct? Let's check it by computing the inverse. Let's remember that we only have `h_0(k=n/2)` and `h_1(k=n-1/2)`, giving us
-
-
-```
-<f,ϕ_{j-1,n}> =𝚺 h_{n-2k} c^{j}[k]  + g_{n-2k} d^{j}_k
-```
-where `c^{j}[k]` is the value of the approximation at level `j` at position `k`, and `d^{j}[k]` is the value of the difference term at level `j` at position `k`.
-
-For the Haar wavelet, we have some complexity here--we have a summation over `k`, but only some values of `k` are non-zero; anywhere where `n-2k =0,1` will have a value, all others will be zero. So what values of `k` and `n` are valid for this?
-We can immediately see that, for any `n`, `k = n/2` or `k=(n-1)/2`, but those two are mutually exclusive integer values--either `n/2` is an integer or `(n-1)/2` is an integer, but not both at the same time. This means that, for each `n`, we will
-pick out a different `k`, creating different functions each time. 
-
-Given that, we need to now figure out what values of `n` are valid. Remembering that we have `N` valid data points, at each level we have half the number of approximations as the level previous, and we go up `lg N` levels. This should mean that, if `k` exceeds the limit
-on the number of entries in the approximation, we can terminate. That will happen after `2^{lg N-j}` entries, and `k` is determined by `n`. Thus, we should assume that `n < 2^{lgN - j}`, and that `k` is either `n/2` or `(n-1)/2` depending on whether `n` is even or odd. So
-we can build out an inverse algorithm by iterating over all the valid `n` for the level, choosing a relevant `k` value, and computing the term. Written in psuedocode, we can write the algorithm for each level `j` as
-
-```
-for n in 0..<=(lg(N)-j+1):
+let max_n = 2^(lg(N)-j+1)
+for n in 0..<max_n:
     let k =  n even ? n/2 : (n-1)/2
-    compute h_{n-2k} = 0 or 1 else continue
-    compute g_{n-2k}
+    let h_{n-2k} = 1/sqrt(2)
+    let g_{n-2k} = n even ? h_1 : -h_0
     c^{j-1}[n] = h_{n-2k}*c^{j}[k] + g_{n-2k}*d^{j}[k]
 ```
 
 This is pretty friendly to a computer implementation, so we should be able to implement it. But let's first start doing it by hand on our previously computed wavelet transform and see if we are correct:
+```math
+wavelet(f) = [ 23/sqrt(2),-3/sqrt(2), -6,12,-2,-6,-1,-1 ]
 ```
-wavelet(f) = [23/sqrt(2),-3/sqrt(2), -6,12,-2,-6,-1,-1]
+We start with $j=2$. The maximum $n$ is thus $2$ so we have $n = 0,1$. This gives us
+```math
+c^2_0 = h_0 c^3_0 + h_1 d^3_0 = \frac{1}{\sqrt{2}} [ 23/\sqrt{2} -3/\sqrt{2} ] = 10
+```
+```math
+c^2_0 = h_0 c^3_0 - h_1 d^3_0 = \frac{1}{\sqrt{2}} [ 23/\sqrt{2} +3/\sqrt{2} ] = 13
+```
+so $f^2 = \[ 10,13 \] $. That looks right so far! Moving to $j=1$, we get
+```math
+c^1_0 = 1/sqrt(2)[ c^{2}_0 + d^{2}_ ] = 1/sqrt(2) [ 10 + -6] = 4/sqrt(2)
+```
+```math
+c^1_1 = 1/sqrt(2)[ c^{2}_0 - d^{2}_ ] = 1/sqrt(2) [ 10 + 6] = 16/sqrt(2)
+```
+```math
+c^1_2 = 1/\sqrt{2} [ 13 + 12] = 25/sqrt(2)
+```
+```math
+c^1_3 = 1/\sqrt{2} [ 13 - 12] = 1/sqrt(2)
+```
+so $f^1 = 1/\sqrt{2} \[ 4, 16, 25, 1\]$, which is also correct. The final value $j=0$ can be done as
+```math
+c^0_0 = 1/2[4-2] = 1
+```
+```math
+c^0_1 = 1/2[4+2] = 3
+```
+```math
+c^0_2 = 1/2[16 + -6] = 5
+```
+```math
+c^0_3 = 1/2[16+6] = 11
+```
+```math
+c^0_4 = 1/2[25-1] = 12
+```
+```math
+c^0_5 = 1/2[25+1] = 13
+```
+```math
+c^0_6 = 1/2[1-1] = 0
+```
+```math
+c^0_7 = 1/2[1+1] = 1
 ```
 
-We start with `j=2`, which means `n=0,1`(`lg(8)  = 3 - 2 = 1`). For `n =0`, we have `k = 0`, giving `n-2k = 0`, and for `n=1` we have `k=0`; so we have
-```
-c^{2}[0] = h_0 c^{3}[0] + g_0 d^{3}[0]
-         = 1/sqrt(2) [ 23/sqrt(2) + -3/sqrt(2)] = 10
-c^{2}[1] = h_1 c^{3}[0] + g_1 d^{3}[0]
-        = 1/sqrt(2) [ 23/sqrt(2) - -3/sqrt(2)] = 13
-```
-So `f^2 = [10, 13]` So far so good
-For `j=1`, we get `n=0,1,2,3` (`lg(8)-1 = 2`). We have the following values for `n,k,h_{n-2k},g_{n-2k}`:
-```
-n = 0 => k = 0, h_0, h_1
-n = 1 => k = 0, h_0, -h_0
-n = 2 => k = 1, h_1, h_1
-n = 3 => k = 1, h_1, -h_0
-```
-since `h_1` and `h_0` are the same (`1/sqrt(2)`), we can quickly write out our c values:
-```
-c^1[0] = 1/sqrt(2)[ c^{2}[0] + d^{2}[0] ] = 1/sqrt(2) [ 10 + -6] = 4/sqrt(2)
-c^1[1] = 1/sqrt(2) [ 10 - -6] = 16/sqrt(2)
-c^1[2] = 1/sqrt(2) [ 13 + 12] = 25/sqrt(2)
-c^1[3] = 1/sqrt(2) [ 13 - 12] = 1/sqrt(2)
-
-```
-So `f^1 = 1/sqrt(2) [ 4,16,25,1 ]` --also lining up!
-
-for `j=0` we have `n=0,1,2,3,4,5,6,7`, and build out the same table as
-```
-n = 0 => k = 0, h_0, h_1
-n = 1 => k = 0, h_0, -h_0
-n = 2 => k = 1, h_1, h_1
-n = 3 => k = 1, h_1, -h_0
-n = 4 => k = 2, h_0, h_1
-n = 5 => k = 2, h_0, -h_0
-n = 6 => k = 3, h_1, h_1
-n = 7 => k = 3, h_1, -h_0
-```
-Giving
-```
-c^0[0] = 1/2[4-2] = 1
-c^0[1] = 1/2[4+2] = 3
-c^0[2] = 1/2[16 + -6] = 5
-c^0[3] = 1/2[16+6] = 11
-c^0[4] = 1/2[25-1] = 12
-c^0[5] = 1/2[25+1] = 13
-c^0[6] = 1/2[1-1] = 0
-c^0[7] = 1/2[1+1] = 1
-```
-so `f^0 = f = [1,3,5,11,12,13,0,1]` which is a perfect reconstruction! 
+so $f^0 = f = \[ 1,3,5,11,12,13,0,1 \]$ which is a perfect reconstruction! 
 
 Thus, for the Haar wavelet at least, we have an algorithm which can perform the transform, and an approach for computing the inverse as well.
-
-Unfortunately, while the algorithm defines an _approach_ and a general mathematical formula, the practical implementation is unique to each choice of wavelet because you need to exploit the mathematical properties of each
-wavelet that you select--the coefficients of the transform `h_n` have to be computed ahead of time, and the inverse algorithm in particular is sensitive to the wavelet's nature. So math doesn't save us entirely, although
-it does create a space for us.
 
 
