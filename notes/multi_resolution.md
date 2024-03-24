@@ -25,15 +25,15 @@ Multi-resolution analysis is a technique for doing just that.
 
 The basic idea is to break the full real space(Mathematically `L^2(ℝ)`) into "Ladder spaces" `V_i`, where 
 
-1. `V_i ⊂ V_{i-1}`. That is, each successive set in the ladder gets "smaller" than the set before
-2. `⩂ V_i = L^2(ℝ)`. That is, the entire space is covered
-3. `∩ V_i = {0}`. All sets contain 0, but that's the _only_ point covered by everything.
+1. $V_i \subset V_{i-1}$. That is, each successive set in the ladder gets "smaller" than the set before
+2. $\bigcup V_i = L^2(ℝ)$. That is, the entire space is covered
+3. $\bigcap V_i = {0}$. All sets contain 0, but that's the _only_ point covered by everything.
 
 These are our "Resolution spaces", and they aren't really necessary except for explaining the next parts. A good example is the dyadic ranges `V_i = [-2^i,2^i]`.
 
 So we choose a convenient "Ladder space" and then we look at specific functions `f` which satisfy
 
-1. `f ∈ V_j <=> f(2^j *) ∈ V_0`. This more or less means that all the spaces are just scaled versions of the "central" space `V_0`. 
+1. $f \in V_j \iff f(2^j) \in V_0$. This more or less means that all the spaces are just scaled versions of the "central" space `V_0`. 
 2. `f ∈ V_0 => f(*-n) ∈ V_0` for any integer `n`. That is, that linear shifts of the function stay in the space.
 
 For example, if we choose `f_{j,k} = constant` on the interval `[2^j*k,2^j*(k+1)]`,
@@ -144,10 +144,10 @@ It's really handy to be able to invert the transform, so that we can reconstruct
 we can trivially reconstruct our original function by inverting our transforms:
 
 ```
-<f,ϕ_{j-1,n}> =𝚺 h_{n-2k} <f,ϕ_{j,k}>  + g_{n-2k}<f,𝛙_{j,k}>
+<f,ϕ_{j-1,n}> =𝚺 h_{n-2k} c^{j}_k  + g_{n-2k} d^{j}_k
  
 ```
-
+where $c^{j}_k$ is the approximation value of $f^{j}$ at location `k`.
 
 ## Example: Haar wavelets over a finite data set
 
