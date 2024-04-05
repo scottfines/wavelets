@@ -8,6 +8,13 @@ const ROOT_2_OVER_2: f64 = 1.0/SQRT_2;
 
 
 pub fn cascade<T>(data: &[T]) -> Vec<f64> where T:Into<f64> + Clone + Copy + std::ops::Sub<Output=T> + std::ops::Add<Output=T>{
+    if data.len() == 0 {
+        return vec![]; //nothing to do
+    }
+    if data.len() & (data.len()-1) != 0 {
+        panic!("The Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds");
+    }
     let levels = data.len().ilog2();
 
     let mut diffs = Vec::with_capacity(data.len()/2);
@@ -31,6 +38,13 @@ pub fn cascade<T>(data: &[T]) -> Vec<f64> where T:Into<f64> + Clone + Copy + std
 
 
 pub fn inverse_cascade(wavelet: &[f64]) -> Vec<f64> {
+    if wavelet.len() == 0 {
+        return vec![]; //nothing to do
+    }
+    if wavelet.len() & (wavelet.len() - 1) != 0 {
+        panic!("The Invese Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds");
+    }
     let levels = wavelet.len().ilog2();
 
     let mut step: Vec<f64> = vec![]; 
@@ -159,6 +173,13 @@ fn interleave<E>(d: &mut [E]) where E:Default + std::fmt::Display {
 /// is probably preferable to use a non-descructive cascade for all kinds of reasons. But
 /// performance should be measured not guessed at.
 fn cascade_in_place(data:&mut [f64]) {
+    if data.len() == 0 {
+        return; //nothing to do
+    }
+    if data.len() & (data.len() - 1) != 0 {
+        panic!("The Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds");
+    }
 
     //do a pass through the data, computing sums and differences. The sum goes into 2n, the diff
     //into 2n+1, replacing the values that were summed
@@ -204,6 +225,14 @@ fn cascade_in_place(data:&mut [f64]) {
 /// likely prove to be faster. However, this is a case of trading time for space--if you need
 /// space and have time, use this. If you need time and have space, use a non-destructive version.
 fn inverse_cascade_in_place(data: &mut [f64] ){ 
+    if data.len() == 0 {
+        return; //nothing to do
+    }
+    if data.len() & (data.len() - 1) != 0 {
+        panic!("The Inverse Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds");
+    }
+
     fn recurse_haar(f: &mut [f64]) {
         // elements fed into this are always a power of 2 (and should always be at least a power 1
         // of 2, so there should always be at least 2 elements)
