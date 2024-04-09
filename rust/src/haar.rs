@@ -83,6 +83,46 @@ fn dwt(data: &[f64]) -> Vec<f64> {
     diffs
 }
 
+/// Compute the multi-resolution decomposition, using the Haar wavelet.
+/// The Multi-resolution decomposition has lg(N)(N=2^p) entries, where each entrie
+/// is a pointwise decomposition using the sums-and-diffs strategy. Each level
+/// has 2^p-j average and difference terms.
+fn decompose_multiresolution(data: &[f64]) -> Vec<Vec<f64>> {
+    if data.len() == 0 {
+        return vec![]; //nothing to do
+    } 
+    if data.len() & (data.len() - 1 ) != 0 {
+        panic!("The Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds");
+    }
+
+    fn level_decomp(data: &[f64]) -> Vec<f64> {
+        let mut decomp = Vec::with_capacity(data.len());
+        decomp.resize(data.len(),0.0);
+        let split = data.len()/2;
+        for k in 0..split {
+            let a = (data[2*k] + data[2*k+1])/SQRT_2;
+            let d = (data[2*k] - data[2*k+1])/SQRT_2;
+            decomp[k] = a;
+            decomp[split+k] = d;
+        }
+        decomp
+    }
+    
+    let levels = data.len().ilog2() as usize;
+    let mut full_decomp: Vec<Vec<f64>> = Vec::with_capacity(levels as usize);
+    for j in 0..levels {
+        let next_decomp:Vec<f64>;
+        if j == 0 {
+            next_decomp = level_decomp(data);
+        } else {
+            let last_decomp = &full_decomp[j-1];
+            next_decomp = level_decomp(&last_decomp[..last_decomp.len()/2]);
+        }
+        full_decomp.push(next_decomp);
+    }
+    full_decomp
+}
 
 
 /// Perform the Haar Cascade wavelet transform in place.
@@ -257,6 +297,30 @@ mod tests {
         let delta = 1e-14;
         for (pos,expected) in expected.iter().enumerate() {
             assert!((expected-data[pos]).abs() < delta, "Element at pos {} incorrect. Expected {} but was {}",pos,expected, data[pos]);
+        }
+    }
+
+    #[test]
+    fn multiresolution_decomp() {
+        let data = [1_f64,3.0,5.0,11.0,12.0,13.0,0.0,1.0];
+
+        let decomp = super::decompose_multiresolution(&data);
+
+        assert_eq!(3,decomp.len(), "Incorrect number of levels!");
+        let l1:&[f64] = &[4.0,16.0,25.0,1.0,-2.0,-6.0,-1.0,-1.0].map( |v | { v/super::SQRT_2 });
+        let d1:&[f64] = &decomp[0];
+        assert_eq!(l1,d1, "Incorrect decomp at level 1!");
+        let l2: &[f64] = &[10.0,13.0,-6.0,12.0];
+        let d2 = &decomp[1];
+        let delta = 1e-14;
+        for (pos, expected) in l2.iter().enumerate() {
+            assert!((expected-d2[pos]).abs() < delta, "Element at pos {} incorrect. Expected {} but was {}",pos,expected, d2[pos]);
+        }
+
+        let l3: &[f64] = &[23.0/super::SQRT_2,-3.0/super::SQRT_2];
+        let d3 = &decomp[2];
+        for (pos, expected) in l3.iter().enumerate() {
+            assert!((expected-d3[pos]).abs() < delta, "Element at pos {} incorrect. Expected {} but was {}",pos,expected, d3[pos]);
         }
     }
 
