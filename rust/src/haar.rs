@@ -7,7 +7,7 @@ const SQRT_2:f64 = std::f64::consts::SQRT_2;
 const ROOT_2_OVER_2: f64 = 1.0/SQRT_2;
 
 
-pub fn cascade<T>(data: &[T]) -> Vec<f64> where T:Into<f64> + Clone + Copy + std::ops::Sub<Output=T> + std::ops::Add<Output=T>{
+pub fn cascade<T>(data: &[T]) -> Vec<f64> where T:Into<f64> + Copy{
     if data.len() == 0 {
         return vec![]; //nothing to do
     }
@@ -15,27 +15,9 @@ pub fn cascade<T>(data: &[T]) -> Vec<f64> where T:Into<f64> + Clone + Copy + std
         panic!("The Discrete Wavelet Transform requires that the data be a power of 2. 
                Pad out the end of the array with zero elements to ensure that this holds");
     }
-    let levels = data.len().ilog2();
-
-    let mut diffs = Vec::with_capacity(data.len()/2);
-    diffs.resize(data.len(),0.0);
-
-    let mut src:Vec<f64> = data.iter().map(|v| { (*v).into() }).collect();
-
-    let mut split = src.len()/2;
-    for _j in 0..levels {
-        for k in 0..split {
-            let a:f64 = (src[2*k] + src[2*k+1])/SQRT_2;
-            let d:f64 = (src[2*k] - src[2*k+1])/SQRT_2;
-            src[k] = a;
-            diffs[k+split] = d;
-        }
-        split /=2;
-    }
-    diffs[0] = src[0].into();
-    diffs
+    let src: Vec<f64> = data.iter().map(|v| { (*v).into() }).collect();
+    dwt(&src)
 }
-
 
 pub fn inverse_cascade(wavelet: &[f64]) -> Vec<f64> {
     if wavelet.len() == 0 {
@@ -72,91 +54,35 @@ pub fn inverse_cascade(wavelet: &[f64]) -> Vec<f64> {
     step
 }
 
-
-
-/// Permute the elements in the slice such that even-numbered elements
-/// are moved to the front, and odd-numbered elements are moved to the back,
-/// while otherwise maintaining their original sort order.
-/// For example, if you start with [0,1,2,3,4,5], this will sort the array
-/// into [0,2,4,1,3,5].
-/// This tranformation is performed _in place_, so the input slice will not
-/// have elements in the same location when this function call is done.
-fn permute_evens<E>(d: &mut [E])  where E: Default{
-    use std::mem;
-    if d.len() < 2{
-        //nothing to do
-        return;
+fn dwt(data: &[f64]) -> Vec<f64> {
+    if data.len() == 0 {
+        return vec![]; //nothing to do
     }
-    
-    let mut p = 1;
-    let mut n = 0;
-    let mid = if d.len()%2 ==0 { d.len()/2 } else {d.len()/2 + 1};
+    if data.len() & (data.len()-1) != 0 {
+        panic!("The Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds");
+    }
+    let levels = data.len().ilog2();
 
-    while p < mid {
-        let sn = n;
-        let mut t = mem::replace(&mut d[p],E::default());
-        loop {
-            //compute destination
-            let dp = if p %2 ==0 { n} else {mid + n};
-            let t2 = mem::replace(&mut d[dp],E::default());
-            d[dp] = t;
-            t = t2;
-            p = dp;
-            n = if dp % 2 ==0 { dp/2 } else { (dp-1)/2 };
+    let mut diffs = Vec::with_capacity(data.len()/2);
+    diffs.resize(data.len(),0.0);
 
-            if n == sn {
-                break;
-            }
+    let mut src:Vec<f64> = data.to_vec();
+
+    let mut split = src.len()/2;
+    for _j in 0..levels {
+        for k in 0..split {
+            let a:f64 = (src[2*k] + src[2*k+1])/SQRT_2;
+            let d:f64 = (src[2*k] - src[2*k+1])/SQRT_2;
+            src[k] = a;
+            diffs[k+split] = d;
         }
-        n += 1;
-        p = 2*n+1;
+        split /=2;
     }
+    diffs[0] = src[0].into();
+    diffs
 }
 
-
-/// Take elements from the back half of the array, and interleave them with elements
-/// from the front half of the array, maintaining order. For example, if the array
-/// is [0,1,2,3,4,5], then the interleave result would be [0,3,1,4,2,5]. This
-/// operation is _in place_
-fn interleave<E>(d: &mut [E]) where E:Default + std::fmt::Display {
-    use std::mem;
-    if d.len() <= 2{
-        //nothing to do
-        return;
-    }
-    d.iter().for_each( |k| { print!("{},",k) });
-    println!("---");
-
-    let len = d.len();
-    // The idea is to bounce elements, where each element currently at p should go to (2*p mod
-    // len), and what is currently there is bounced to its new location, continuing until we return
-    // to the element that we started at. Once that is done, we move up by two until we reach len/2
-    // (which will capture all the elements
-    let mut p = 1;
-    let modulo = if len%2 == 0 { len+1 } else { len };
-    loop {
-        let sp = p; // the start of the cycle
-        let mut i = sp;
-        let mut t = mem::replace(&mut d[i],E::default());
-        loop {
-            i = (2*i) % modulo;
-            if i == len {
-                i = 1;
-            }
-            let t2 = mem::replace(&mut d[i],E::default());
-            d[i] = t;
-            t = t2;
-            if i == sp {
-                break;
-            }
-        }
-        p +=2;
-
-        if p > len/2 {
-            break;
-        }
-    }
-}
 
 
 /// Perform the Haar Cascade wavelet transform in place.
@@ -173,6 +99,7 @@ fn interleave<E>(d: &mut [E]) where E:Default + std::fmt::Display {
 /// is probably preferable to use a non-descructive cascade for all kinds of reasons. But
 /// performance should be measured not guessed at.
 fn cascade_in_place(data:&mut [f64]) {
+    use crate::arrays;
     if data.len() == 0 {
         return; //nothing to do
     }
@@ -192,8 +119,8 @@ fn cascade_in_place(data:&mut [f64]) {
             data[pos] = sum;
             data[pos+1] = diff;
         }
-        //now the permute step --permute only the slice that we are interested in though
-        permute_evens(&mut data[0..len]);
+        //now the rearrangement step --only rearrange the slice that we are interested in though
+        arrays::partition_evens(&mut data[0..len]);
 
         len /=2;
     }
@@ -281,8 +208,6 @@ fn inverse_cascade_in_place(data: &mut [f64] ){
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -335,52 +260,5 @@ mod tests {
         }
     }
 
-    #[test]
-    fn permute_works_even() {
-        let mut data = [0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0]; 
-
-        super::permute_evens(&mut data);
-
-        assert_eq!([0.0,2.0,4.0,6.0,1.0,3.0,5.0,7.0],data, "Incorrect permutation!");
-    }
-
-    #[test]
-    fn permute_works_odd() {
-        let mut data = [0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]; 
-
-        super::permute_evens(&mut data);
-
-        assert_eq!([0.0,2.0,4.0,6.0,8.0,1.0,3.0,5.0,7.0],data, "Incorrect permutation!");
-    }
-
-    #[test]
-    fn permute_size_3() {
-        let mut data = [0.0,1.0,2.0];
-
-        super::permute_evens(&mut data);
-
-        assert_eq!([0.0,2.0,1.0],data, "Incorrect permutation!");
-    }
-
-    #[test]
-    fn permute_several() {
-        for size in 0..10 {
-            let mut data:Vec<usize> = Vec::new();
-            for i in 0..=size {
-                data.push(i);
-            }
-
-            super::permute_evens(&mut data[..]);
-
-            //the first size/2 elements should be even then odd
-            for i in 0..=size/2 {
-                assert!(data[i] % 2 ==0, "Element d[{}] should be even, but is {}!",i,data[i]);
-            }
-            for i in size/2+1..size {
-                assert!(data[i] % 2 !=0, "Element d[{}] should be odd, but is {}!",i,data[i]);
-            }
-
-        }
-    }
 
 }

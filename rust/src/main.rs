@@ -1,4 +1,5 @@
 mod haar;
+mod arrays;
 
 fn main() {
     let data = [1,3,5,11,12,13,0,1];
