@@ -44,7 +44,11 @@ pub trait WaveletTransform {
 ///
 /// A Multi-Resolution Decomposition has all the levels of the discrete wavelet transform
 /// available for analysis, and can be converted into a type of WaveletTransform.
-pub trait MRDecomposition<WT: WaveletTransform>: Into<WT> {}
+pub trait MRDecomposition<WT: WaveletTransform>: Into<WT> {
+    fn decompose<T>(data: &[T]) -> Self
+    where
+        T: Into<f64> + Copy;
+}
 
 /// Perform the Discrete Wavelet Transform(DWT) on the specified data.
 ///

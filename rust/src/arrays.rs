@@ -46,6 +46,28 @@ where
     }
 }
 
+pub fn pad<T>(d: &[T]) -> Vec<f64>
+where
+    T: Into<f64> + Copy,
+{
+    if d.len() & (d.len() - 1) != 0 {
+        //the size isn't a power of two, so pad it to the nearest
+        let mut p = 0;
+        let mut s = 1;
+        while s < d.len() {
+            s <<= 1;
+            p += 1;
+        }
+
+        let mut padded: Vec<f64> = Vec::with_capacity(p);
+        d.into_iter().for_each(|v| padded.push((*v).into()));
+        padded.resize(s, 0.0);
+        padded
+    } else {
+        d.into_iter().map(|v| (*v).into()).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

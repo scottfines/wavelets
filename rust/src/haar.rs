@@ -1,5 +1,6 @@
 // A temporary holding for the haar-based wavelet transform
 // this will eventually generalize as I develop more wavelet forms for the cascades
+use crate::arrays;
 
 const SQRT_2: f64 = std::f64::consts::SQRT_2;
 const ROOT_2_OVER_2: f64 = 1.0 / SQRT_2;
@@ -64,6 +65,37 @@ impl super::WaveletTransform for HaarWavelet {
     }
 }
 
+fn dwt(data: &[f64]) -> Vec<f64> {
+    if data.len() == 0 {
+        return vec![]; //nothing to do
+    }
+    if data.len() & (data.len() - 1) != 0 {
+        panic!(
+            "The Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds"
+        );
+    }
+    let levels = data.len().ilog2();
+
+    let mut diffs = Vec::with_capacity(data.len() / 2);
+    diffs.resize(data.len(), 0.0);
+
+    let mut src: Vec<f64> = data.to_vec();
+
+    let mut split = src.len() / 2;
+    for _j in 0..levels {
+        for k in 0..split {
+            let a: f64 = (src[2 * k] + src[2 * k + 1]) / SQRT_2;
+            let d: f64 = (src[2 * k] - src[2 * k + 1]) / SQRT_2;
+            src[k] = a;
+            diffs[k + split] = d;
+        }
+        split /= 2;
+    }
+    diffs[0] = src[0].into();
+    diffs
+}
+
 pub fn inverse_dwt(wavelet: &[f64]) -> Vec<f64> {
     if wavelet.len() == 0 {
         return vec![]; //nothing to do
@@ -101,79 +133,10 @@ pub fn inverse_dwt(wavelet: &[f64]) -> Vec<f64> {
     step
 }
 
-fn dwt(data: &[f64]) -> Vec<f64> {
-    if data.len() == 0 {
-        return vec![]; //nothing to do
-    }
-    if data.len() & (data.len() - 1) != 0 {
-        panic!(
-            "The Discrete Wavelet Transform requires that the data be a power of 2. 
-               Pad out the end of the array with zero elements to ensure that this holds"
-        );
-    }
-    let levels = data.len().ilog2();
-
-    let mut diffs = Vec::with_capacity(data.len() / 2);
-    diffs.resize(data.len(), 0.0);
-
-    let mut src: Vec<f64> = data.to_vec();
-
-    let mut split = src.len() / 2;
-    for _j in 0..levels {
-        for k in 0..split {
-            let a: f64 = (src[2 * k] + src[2 * k + 1]) / SQRT_2;
-            let d: f64 = (src[2 * k] - src[2 * k + 1]) / SQRT_2;
-            src[k] = a;
-            diffs[k + split] = d;
-        }
-        split /= 2;
-    }
-    diffs[0] = src[0].into();
-    diffs
-}
-
 /// Compute the multi-resolution decomposition, using the Haar wavelet.
 /// The Multi-resolution decomposition has lg(N)(N=2^p) entries, where each entrie
 /// is a pointwise decomposition using the sums-and-diffs strategy. Each level
 /// has 2^p-j average and difference terms.
-fn decompose_multiresolution(data: &[f64]) -> Vec<Vec<f64>> {
-    if data.len() == 0 {
-        return vec![]; //nothing to do
-    }
-    if data.len() & (data.len() - 1) != 0 {
-        panic!(
-            "The Discrete Wavelet Transform requires that the data be a power of 2. 
-               Pad out the end of the array with zero elements to ensure that this holds"
-        );
-    }
-
-    fn level_decomp(data: &[f64]) -> Vec<f64> {
-        let mut decomp = Vec::with_capacity(data.len());
-        decomp.resize(data.len(), 0.0);
-        let split = data.len() / 2;
-        for k in 0..split {
-            let a = (data[2 * k] + data[2 * k + 1]) / SQRT_2;
-            let d = (data[2 * k] - data[2 * k + 1]) / SQRT_2;
-            decomp[k] = a;
-            decomp[split + k] = d;
-        }
-        decomp
-    }
-
-    let levels = data.len().ilog2() as usize;
-    let mut full_decomp: Vec<Vec<f64>> = Vec::with_capacity(levels as usize);
-    for j in 0..levels {
-        let next_decomp: Vec<f64>;
-        if j == 0 {
-            next_decomp = level_decomp(data);
-        } else {
-            let last_decomp = &full_decomp[j - 1];
-            next_decomp = level_decomp(&last_decomp[..last_decomp.len() / 2]);
-        }
-        full_decomp.push(next_decomp);
-    }
-    full_decomp
-}
 
 /// Perform the Haar Cascade wavelet transform in place.
 /// This will perform the cascade algorithm to construct the Haar wavelet
@@ -189,7 +152,6 @@ fn decompose_multiresolution(data: &[f64]) -> Vec<Vec<f64>> {
 /// is probably preferable to use a non-descructive cascade for all kinds of reasons. But
 /// performance should be measured not guessed at.
 fn dwt_in_place(data: &mut [f64]) {
-    use crate::arrays;
     if data.len() == 0 {
         return; //nothing to do
     }
@@ -300,6 +262,89 @@ fn inverse_dwt_in_place(data: &mut [f64]) {
         let size = 1 << j;
         recurse_haar(&mut data[..size]);
     }
+}
+
+#[derive(Debug)]
+pub struct HaarDecomposition {
+    levels: Vec<Vec<f64>>,
+}
+
+impl Into<HaarWavelet> for HaarDecomposition {
+    fn into(self) -> HaarWavelet {
+        // To build out the final Wavelet transform, we need to copy out the wavelet terms from
+        // each decomposition level into a single array, and then prepend the average from the
+        // final level. Conveniently, if we do that in reverse order it's a pretty straightforward
+        // matter of copying from one vector to another
+        let size = self.levels[0].len();
+        let mut transform: Vec<f64> = Vec::with_capacity(size);
+        for l in 0..self.levels.len() {
+            let level = &self.levels[0];
+            let lim = size / (1 << l);
+            (&mut transform[..lim]).copy_from_slice(&level);
+        }
+
+        HaarWavelet { transform }
+    }
+}
+
+impl super::MRDecomposition<HaarWavelet> for HaarDecomposition {
+    fn decompose<T>(data: &[T]) -> Self
+    where
+        T: Into<f64> + Copy,
+    {
+        if data.len() == 0 {
+            return HaarDecomposition { levels: vec![] };
+        }
+        let to_decompose: Vec<f64>;
+        if data.len() & (data.len() - 1) != 0 {
+            //data is not a power of 2, so pad it
+            to_decompose = arrays::pad(data);
+        } else {
+            to_decompose = data.iter().map(|v| (*v).into()).collect();
+        }
+        HaarDecomposition {
+            levels: decompose_multiresolution(&to_decompose),
+        }
+    }
+}
+
+fn decompose_multiresolution(data: &[f64]) -> Vec<Vec<f64>> {
+    if data.len() == 0 {
+        return vec![]; //nothing to do
+    }
+    if data.len() & (data.len() - 1) != 0 {
+        panic!(
+            "The Discrete Wavelet Transform requires that the data be a power of 2. 
+               Pad out the end of the array with zero elements to ensure that this holds"
+        );
+    }
+
+    fn level_decomp(data: &[f64]) -> Vec<f64> {
+        let mut decomp = Vec::with_capacity(data.len());
+        decomp.resize(data.len(), 0.0);
+        let split = data.len() / 2;
+        for k in 0..split {
+            let a = (data[2 * k] + data[2 * k + 1]) / SQRT_2;
+            let d = (data[2 * k] - data[2 * k + 1]) / SQRT_2;
+            decomp[k] = a;
+            decomp[split + k] = d;
+        }
+        decomp
+    }
+
+    let levels = data.len().ilog2() as usize;
+    let mut full_decomp: Vec<Vec<f64>> = Vec::with_capacity(levels as usize);
+    for j in 0..levels {
+        let next_decomp: Vec<f64>;
+        if j == 0 {
+            next_decomp = level_decomp(data);
+        } else {
+            let last_decomp = &full_decomp[j - 1];
+            next_decomp = level_decomp(&last_decomp[..last_decomp.len() / 2]);
+        }
+        full_decomp.push(next_decomp);
+    }
+    full_decomp
 }
 
 #[cfg(test)]
